@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from functools import wraps
+from cn_char_convert import CnCharConvert
 
 import cherrypy
 import psutil
@@ -39,6 +40,8 @@ app.config['BABEL_TRANSLATION_DIRECTORIES'] = 'translations'
 babel = Babel(app)
 site_name = "PiKaraoke"
 admin_password = None
+
+cn_conv = CnCharConvert()
 
 def filename_from_path(file_path, remove_youtube_id=True):
     rc = os.path.basename(file_path)
@@ -268,10 +271,17 @@ def search():
 @app.route("/autocomplete")
 def autocomplete():
     q = request.args.get('q').lower()
+    #Convert any simplified Chinese characters to traditional for an additional search
+    q_trad = cn_conv.ConvertToTrad(q)
     result = []
     for each in k.available_songs:
         if q in each.lower():
             result.append({"path": each, "fileName": k.filename_from_path(each), "type": "autocomplete"})
+        if q != q_trad and q_trad in each.lower():
+            #If we found it with traditional characters, convert to simplified so selectize will still use this entry
+            fileNameSimp = cn_conv.ConvertToSimp(k.filename_from_path(each))
+            result.append({"path": each, "fileName": fileNameSimp, "type": "autocomplete"})
+
     response = app.response_class(
         response=json.dumps(result),
         mimetype='application/json'
